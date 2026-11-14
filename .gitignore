@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Uploads locaux (si stockage local)
+uploads/
+tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
