@@ -1,9 +1,14 @@
 require('dotenv').config();
 
 const express = require('express');
+const path = require('path');
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
+const dossierRoutes = require('./routes/dossier.routes');
+const documentRoutes = require('./routes/document.routes');
+const publicationRoutes = require('./routes/publication.routes');
 
 const app = express();
 
@@ -23,7 +28,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Route de santé ──────────────────────────────────────────
+// ── Fichiers statiques (uploads locaux) ─────────────────────
+// Sert /uploads/xxx en HTTP pour que Flutter puisse télécharger
+// les fichiers via leur urlLocale.
+app.use(
+  '/uploads',
+  express.static(path.join(process.cwd(), 'uploads'), {
+    maxAge: '1d',
+    fallthrough: true,
+  })
+);
+
+// ── Routes de santé ────────────────────────────────────────
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
@@ -48,9 +64,10 @@ app.get('/api/health', async (req, res) => {
 
 // ── Routes API ─────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-// app.use('/api/users', require('./routes/user.routes'));
-// app.use('/api/dossiers', require('./routes/dossier.routes'));
-// app.use('/api/devis', require('./routes/devis.routes'));
+app.use('/api/users', userRoutes);
+app.use('/api/dossiers', dossierRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/publications', publicationRoutes);
 // app.use('/api/factures', require('./routes/facture.routes'));
 
 // ── Middlewares d'erreurs (TOUJOURS en dernier) ─────────────
