@@ -19,7 +19,7 @@ router.use(protect);
  * POST   /api/documents                 → upload (admin/secretaire/designer/dg)
  * GET    /api/documents/me              → mes documents (avec recherche)
  * GET    /api/documents/:id             → détail
- * PUT    /api/documents/:id             → modifier métadonnées
+ * PUT    /api/documents/:id             → modifier métadonnées et/ou remplacer le fichier
  * PUT    /api/documents/:id/publish     → publier/dépublier
  * DELETE /api/documents/:id             → supprimer (local + cloud)
  */
@@ -42,10 +42,11 @@ router.get(
 // Détail : admin, owner ou technicien (si publié) → géré dans le controller
 router.get('/:id', getDocument);
 
-// Modification métadonnées
+// Modification métadonnées + possibilité de remplacer le fichier
 router.put(
   '/:id',
   requireRole('admin', 'secretaire', 'designer', 'dg'),
+  upload.single('fichier'), // 👈 AJOUTÉ ICI pour lire le nouveau fichier si présent
   updateDocument
 );
 

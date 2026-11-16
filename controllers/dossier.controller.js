@@ -10,21 +10,8 @@ const Document = require('../models/Document');
  * ───────────────────────────────────────────────────────────
  */
 
-/**
- * Seul l'admin voit tous les dossiers (supervision).
- * Tous les autres rôles ne voient que leurs propres dossiers.
- */
 const ROLES_GLOBAL_VIEW = ['admin'];
-
-/**
- * Rôles autorisés à créer un dossier (chacun dans son espace).
- */
 const ROLES_CREATE = ['admin', 'secretaire', 'designer', 'dg'];
-
-/**
- * Seul l'admin peut modifier/supprimer N'IMPORTE QUEL dossier.
- * Les autres rôles ne peuvent modifier/supprimer que les leurs.
- */
 const ROLES_GLOBAL_WRITE = ['admin'];
 
 /**
@@ -42,24 +29,12 @@ const dossierResponse = (dossier) => ({
   updatedAt: dossier.updatedAt,
 });
 
-/**
- * Helper : un user peut-il voir un dossier donné ?
- *   - Admin : oui (toujours)
- *   - Autres rôles : uniquement si owner
- *   - Technicien : jamais
- */
 const canView = (user, dossier) => {
   if (user.role === 'admin') return true;
   if (user.role === 'technicien') return false;
   return dossier.owner.toString() === user._id.toString();
 };
 
-/**
- * Helper : un user peut-il modifier/supprimer un dossier ?
- *   - Admin : oui (toujours)
- *   - Secrétaire/Designer/DG : uniquement si owner
- *   - Technicien : jamais
- */
 const canWrite = (user, dossier) => {
   if (user.role === 'admin') return true;
   if (user.role === 'technicien') return false;
@@ -68,32 +43,21 @@ const canWrite = (user, dossier) => {
 
 /**
  * POST /api/dossiers
- * Crée un dossier dans l'espace personnel de l'utilisateur.
- * Le `owner` est TOUJOURS l'utilisateur connecté (impossible de créer
- * un dossier au nom d'un autre, même en trichant sur le body).
- * @access Admin, Secrétaire, Designer, DG
  */
 const createDossier = async (req, res, next) => {
   try {
     if (!ROLES_CREATE.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        error: {
-          message: `Le rôle "${req.user.role}" ne peut pas créer de dossier`,
-          statusCode: 403,
-        },
+        error: { message: `Le rôle "${req.user.role}" ne peut pas créer de dossier`, statusCode: 403 },
       });
     }
 
     const { nom, client, adresseChantier, description } = req.body;
-
     if (!nom || !client) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: 'nom et client sont requis',
-          statusCode: 400,
-        },
+        error: { message: 'nom et client sont requis', statusCode: 400 },
       });
     }
 
@@ -102,13 +66,10 @@ const createDossier = async (req, res, next) => {
       client,
       adresseChantier: adresseChantier || '',
       description: description || '',
-      owner: req.user._id, // ⚠️ forcé, jamais depuis le body
+      owner: req.user._id,
     });
 
-    return res.status(201).json({
-      success: true,
-      data: dossierResponse(dossier),
-    });
+    return res.status(201).json({ success: true, data: dossierResponse(dossier) });
   } catch (err) {
     return next(err);
   }
@@ -116,38 +77,24 @@ const createDossier = async (req, res, next) => {
 
 /**
  * GET /api/dossiers
- * Liste les dossiers visibles par l'utilisateur connecté :
- *   - Admin : tous les dossiers
- *   - Secrétaire/Designer/DG : uniquement SES dossiers
- *   - Technicien : 403 (aucun accès)
- * Filtres : ?statut=en_cours&client=Dupont&q=recherche
- * @access Admin, Secrétaire, Designer, DG
  */
 const listDossiers = async (req, res, next) => {
   try {
-    // Technicien : aucun accès
     if (req.user.role === 'technicien') {
       return res.status(403).json({
         success: false,
-        error: {
-          message: 'Les techniciens n\'ont pas accès aux dossiers',
-          statusCode: 403,
-        },
+        error: { message: 'Les techniciens n\'ont pas accès aux dossiers', statusCode: 403 },
       });
     }
 
     const filter = {};
-
-    // Isolation stricte : sauf admin, chacun voit uniquement ses dossiers
     if (!ROLES_GLOBAL_VIEW.includes(req.user.role)) {
       filter.owner = req.user._id;
     }
 
-    // Filtres optionnels
     if (req.query.statut) filter.statut = req.query.statut;
     if (req.query.client) filter.client = new RegExp(req.query.client, 'i');
 
-    // Recherche full-text via $text
     let projection = {};
     let sort = { createdAt: -1 };
     if (req.query.q) {
@@ -187,22 +134,21 @@ const getDossier = async (req, res, next) => {
     if (!canView(req.user, dossier)) {
       return res.status(403).json({
         success: false,
-        error: {
-          message: 'Accès refusé : ce dossier appartient à un autre espace de travail',
-          statusCode: 403,
-        },
+        error: { message: 'Accès refusé : ce dossier appartient à un autre espace de travail', statusCode: 403 },
       });
     }
 
-    // Liste des documents rattachés (sans le binaire)
+    // 👇 MODIFICATION ICI : On sélectionne tout l'objet 'fichier' 
+    // (et non plus juste size et mimeType)
     const documents = await Document.find({ dossier: dossier._id })
-      .select('type nom entrepriseCliente nomChantier dateDocument mois annee isPublished fichier.size fichier.mimeType createdAt')
+      .select('type nom entrepriseCliente nomChantier dateDocument mois annee isPublished fichier createdAt')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       data: {
         ...dossierResponse(dossier),
+        // 👇 MODIFICATION ICI : On renvoie l'objet complet 'fichier' pour Flutter
         documents: documents.map((d) => ({
           id: d._id,
           type: d.type,
@@ -213,8 +159,7 @@ const getDossier = async (req, res, next) => {
           mois: d.mois,
           annee: d.annee,
           isPublished: d.isPublished,
-          taille: d.fichier?.size,
-          mimeType: d.fichier?.mimeType,
+          fichier: d.fichier, // 👈 L'objet complet (avec urlLocale, urlCloud, etc.)
           createdAt: d.createdAt,
         })),
       },
@@ -226,8 +171,6 @@ const getDossier = async (req, res, next) => {
 
 /**
  * PUT /api/dossiers/:id
- * Modifie un dossier (nom, client, adresse, description, statut).
- * @access Admin (tout) | Secrétaire/Designer/DG (si owner)
  */
 const updateDossier = async (req, res, next) => {
   try {
@@ -242,10 +185,7 @@ const updateDossier = async (req, res, next) => {
     if (!canWrite(req.user, dossier)) {
       return res.status(403).json({
         success: false,
-        error: {
-          message: 'Accès refusé : ce dossier appartient à un autre espace de travail',
-          statusCode: 403,
-        },
+        error: { message: 'Accès refusé : ce dossier appartient à un autre espace de travail', statusCode: 403 },
       });
     }
 
@@ -259,10 +199,7 @@ const updateDossier = async (req, res, next) => {
       if (!Dossier.STATUTS.includes(statut)) {
         return res.status(400).json({
           success: false,
-          error: {
-            message: `Statut invalide. Valeurs : ${Dossier.STATUTS.join(', ')}`,
-            statusCode: 400,
-          },
+          error: { message: `Statut invalide. Valeurs : ${Dossier.STATUTS.join(', ')}`, statusCode: 400 },
         });
       }
       dossier.statut = statut;
@@ -270,10 +207,7 @@ const updateDossier = async (req, res, next) => {
 
     await dossier.save();
 
-    return res.status(200).json({
-      success: true,
-      data: dossierResponse(dossier),
-    });
+    return res.status(200).json({ success: true, data: dossierResponse(dossier) });
   } catch (err) {
     return next(err);
   }
@@ -281,8 +215,6 @@ const updateDossier = async (req, res, next) => {
 
 /**
  * DELETE /api/dossiers/:id
- * Supprime un dossier + ses documents.
- * @access Admin (tout) | Secrétaire/Designer/DG (si owner)
  */
 const deleteDossier = async (req, res, next) => {
   try {
@@ -297,18 +229,11 @@ const deleteDossier = async (req, res, next) => {
     if (!canWrite(req.user, dossier)) {
       return res.status(403).json({
         success: false,
-        error: {
-          message: 'Accès refusé : ce dossier appartient à un autre espace de travail',
-          statusCode: 403,
-        },
+        error: { message: 'Accès refusé : ce dossier appartient à un autre espace de travail', statusCode: 403 },
       });
     }
 
-    // Compter les documents avant suppression
     const docCount = await Document.countDocuments({ dossier: dossier._id });
-
-    // Suppression en cascade des documents MongoDB
-    // (les fichiers physiques local + cloud restent pour V1 — nettoyage cron plus tard)
     await Document.deleteMany({ dossier: dossier._id });
     await dossier.deleteOne();
 

@@ -72,13 +72,13 @@ const fileFilter = (req, file, cb) => {
 
 /**
  * Instance Multer prête à l'emploi.
- * Limite : 50 MB par fichier (à ajuster si vidéo plus lourde).
+ * Limite : 5 Go (5 * 1024 * 1024 * 1024 octets) par fichier.
  */
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024,
+    fileSize: 5 * 1024 * 1024 * 1024, // 👈 5 Go
     files: 1,
   },
 });

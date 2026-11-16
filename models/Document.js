@@ -3,18 +3,62 @@ const mongoose = require('mongoose');
 /**
  * Types de documents (cf. cahier des charges + besoin recherche)
  */
-const TYPES = ['devis', 'facture', 'pdf', 'photo', 'video', 'audio', 'autre'];
+const TYPES = [
+  'devis',
+  'facture',
+  'pdf',
+  'photo',
+  'video',
+  'audio',
+  'archive',   // 👈 Nouveau
+  'document',  // 👈 Nouveau
+  'autre'
+];
 
 /**
  * Sous-types MIME acceptés (validation à l'upload)
+ * Note : 'application/octet-stream' est ajouté pour compenser
+ * le comportement des navigateurs Web qui envoient un type générique.
  */
 const MIME_MAP = {
-  devis: ['application/pdf'],
-  facture: ['application/pdf'],
-  pdf: ['application/pdf'],
-  photo: ['image/jpeg', 'image/png', 'image/webp', 'image/heic'],
-  video: ['video/mp4', 'video/quicktime', 'video/webm'],
-  audio: ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg'],
+  devis: ['application/pdf', 'application/octet-stream'],
+  facture: ['application/pdf', 'application/octet-stream'],
+  pdf: ['application/pdf', 'application/octet-stream'],
+  
+  photo: [
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 
+    'application/octet-stream'
+  ],
+  
+  video: [
+    'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska', 
+    'application/octet-stream'
+  ],
+  
+  audio: [
+    'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 
+    'application/octet-stream'
+  ],
+  
+  archive: [
+    'application/zip', 
+    'application/x-zip-compressed', 
+    'application/x-rar-compressed', 
+    'application/x-7z-compressed', 
+    'application/octet-stream'
+  ],
+  
+  document: [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+    'text/plain',
+    'application/octet-stream'
+  ],
+  
   autre: ['*/*'],
 };
 

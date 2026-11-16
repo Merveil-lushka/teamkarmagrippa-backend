@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { register, login, getMe } = require('../controllers/auth.controller');
+const { register, login, getMe, updateMe } = require('../controllers/auth.controller'); // 👈 Import de updateMe
 const { protect } = require('../middleware/auth.middleware');
 
 /**
@@ -24,5 +24,12 @@ router.post('/login', login);
  * @access  Privé (JWT requis)
  */
 router.get('/me', protect, getMe);
+
+/**
+ * @route   PUT /api/auth/me
+ * @desc    Mise à jour du profil de l'utilisateur connecté
+ * @access  Privé (JWT requis)
+ */
+router.put('/me', protect, updateMe); // 👈 Nouvelle route ajoutée
 
 module.exports = router;
