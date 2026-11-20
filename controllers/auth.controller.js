@@ -15,8 +15,10 @@ const userResponse = (user, token = null) => {
     nom: user.nom,
     prenom: user.prenom,
     email: user.email,
+    agentCode: user.agentCode, // 👈 Ajouté
     role: user.role,
     actif: user.actif,
+    canPublish: user.canPublish, // 👈 Ajouté
     lastLogin: user.lastLogin,
     createdAt: user.createdAt,
   };
@@ -24,43 +26,47 @@ const userResponse = (user, token = null) => {
   return data;
 };
 
+// (Optionnel) On garde le register public mais on ne l'utilise plus vraiment
 const register = async (req, res, next) => {
   try {
     const { nom, prenom, email, password } = req.body;
-    if (!nom || !prenom || !email || !password) {
+    if (!nom || !prenom || !password) {
       return res.status(400).json({ success: false, error: { message: 'Tous les champs sont requis', statusCode: 400 } });
     }
-    const existing = await User.findOne({ email: String(email).toLowerCase() });
-    if (existing) {
-      return res.status(409).json({ success: false, error: { message: 'Cet email est déjà utilisé', statusCode: 409 } });
-    }
-    const user = await User.create({ nom, prenom, email, password, role: 'technicien' });
+    
+    // On génère un code agent temporaire pour l'inscription publique
+    const year = new Date().getFullYear();
+    const count = await User.countDocuments();
+    const agentCode = `TK${year}${(count + 1).toString().padStart(4, '0')}`;
+
+    const user = await User.create({ nom, prenom, email, password, agentCode, role: 'technicien' });
     const token = signToken(user);
-    return res.status(201).json({
-      success: true,
-      message: 'Compte créé (rôle technicien). Contactez un admin pour élever vos droits.',
-      data: userResponse(user, token),
-    });
+    return res.status(201).json({ success: true, data: userResponse(user, token) });
   } catch (err) { return next(err); }
 };
 
+// 👇 MODIFICATION ICI : Login par Code Agent
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: { message: 'email et password requis', statusCode: 400 } });
+    const { agentCode, password } = req.body;
+    if (!agentCode || !password) {
+      return res.status(400).json({ success: false, error: { message: 'Code Agent et mot de passe requis', statusCode: 400 } });
     }
-    const user = await User.findOne({ email: String(email).toLowerCase() }).select('+password');
+    
+    // On cherche par agentCode
+    const user = await User.findOne({ agentCode: agentCode.toUpperCase() }).select('+password');
     if (!user) {
-      return res.status(401).json({ success: false, error: { message: 'Email ou mot de passe incorrect', statusCode: 401 } });
+      return res.status(401).json({ success: false, error: { message: 'Code Agent ou mot de passe incorrect', statusCode: 401 } });
     }
+    
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, error: { message: 'Email ou mot de passe incorrect', statusCode: 401 } });
+      return res.status(401).json({ success: false, error: { message: 'Code Agent ou mot de passe incorrect', statusCode: 401 } });
     }
     if (!user.actif) {
       return res.status(403).json({ success: false, error: { message: 'Compte désactivé', statusCode: 403 } });
     }
+    
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
     const token = signToken(user);
@@ -74,33 +80,19 @@ const getMe = async (req, res, next) => {
   } catch (err) { return next(err); }
 };
 
-// 👇 NOUVELLE FONCTION : Modifier son propre profil
 const updateMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ success: false, error: { message: 'Utilisateur introuvable', statusCode: 404 } });
-    }
+    if (!user) return res.status(404).json({ success: false, error: { message: 'Utilisateur introuvable', statusCode: 404 } });
 
     const { nom, prenom, password } = req.body;
-    
     if (nom !== undefined) user.nom = nom;
     if (prenom !== undefined) user.prenom = prenom;
-    
-    // Si un nouveau mot de passe est fourni, on le met à jour (le hook pre-save va le hasher)
-    if (password && password.trim().length >= 6) {
-      user.password = password;
-    }
+    if (password && password.trim().length >= 6) user.password = password;
 
     await user.save();
-
-    return res.status(200).json({
-      success: true,
-      data: userResponse(user),
-    });
-  } catch (err) {
-    return next(err);
-  }
+    return res.status(200).json({ success: true, data: userResponse(user) });
+  } catch (err) { return next(err); }
 };
 
 module.exports = { register, login, getMe, updateMe };
