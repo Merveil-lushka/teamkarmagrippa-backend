@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 const commentSchema = new mongoose.Schema(
@@ -19,6 +20,12 @@ const commentSchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, 'Le commentaire ne doit pas dépasser 1000 caractères'],
     },
+    readBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   { timestamps: true }
 );

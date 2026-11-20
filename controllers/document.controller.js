@@ -4,10 +4,11 @@ const Document = require('../models/Document');
 const Dossier = require('../models/Dossier');
 const Publication = require('../models/Publication');
 const Counter = require('../models/Counter');
+const Notification = require('../models/Notification'); // 👈 Ajouté
+const User = require('../models/User'); // 👈 Ajouté
 const cloudinaryService = require('../services/cloudinary.service');
 
 const ROLES_GLOBAL_VIEW = ['admin'];
-// 👇 Le technicien est ajouté ici
 const ROLES_CREATE = ['admin', 'secretaire', 'designer', 'dg', 'technicien'];
 const ROLES_PUBLISH = ['admin', 'secretaire', 'designer', 'dg', 'technicien'];
 
@@ -18,8 +19,8 @@ const documentResponse = (doc) => ({
   description: doc.description,
   entrepriseCliente: doc.entrepriseCliente,
   nomChantier: doc.nomChantier,
-  adresseChantier: doc.adresseChantier, // 👈 Ajouté
-  devise: doc.devise, // 👈 Ajouté
+  adresseChantier: doc.adresseChantier,
+  devise: doc.devise,
   dateDocument: doc.dateDocument,
   mois: doc.mois,
   annee: doc.annee,
@@ -35,18 +36,15 @@ const documentResponse = (doc) => ({
 
 const canView = (user, doc) => {
   if (user.role === 'admin') return true;
-  // Le technicien peut voir ses propres fichiers OU les fichiers publiés
   if (user.role === 'technicien') return doc.owner.toString() === user._id.toString() || doc.isPublished === true;
   return doc.owner.toString() === user._id.toString();
 };
 
 const canWrite = (user, doc) => {
   if (user.role === 'admin') return true;
-  // Le technicien peut modifier/supprimer ses propres fichiers
   return doc.owner.toString() === user._id.toString();
 };
 
-// 👇 Fonction pour générer le numéro de série (TK0001)
 const generateSerialNumber = async () => {
   const counter = await Counter.findByIdAndUpdate(
     'document_number',
@@ -66,7 +64,7 @@ const createDocument = async (req, res, next) => {
     }
 
     const {
-      type, nom, description, entrepriseCliente, nomChantier, adresseChantier, devise, // 👈 Ajouté
+      type, nom, description, entrepriseCliente, nomChantier, adresseChantier, devise,
       dateDocument, dossierId,
       numeroDevis, montantDevisHT, montantDevisTTC, dateValiditeDevis,
       numeroFacture, montantFactureTTC, dateEcheanceFacture, statutPaiement,
@@ -100,8 +98,8 @@ const createDocument = async (req, res, next) => {
       type, nom, description: description || '', 
       entrepriseCliente: entrepriseCliente || '', 
       nomChantier: nomChantier || '',
-      adresseChantier: adresseChantier || '', // 👈 Ajouté
-      devise: devise || 'USD', // 👈 Ajouté
+      adresseChantier: adresseChantier || '',
+      devise: devise || 'USD',
       dateDocument: new Date(dateDocument),
       fichier: {
         originalName: req.file.originalname,
@@ -131,7 +129,6 @@ const createDocument = async (req, res, next) => {
 
 const listMyDocuments = async (req, res, next) => {
   try {
-    // 👇 On retire le blocage pour les techniciens
     const filter = {};
     if (!ROLES_GLOBAL_VIEW.includes(req.user.role)) filter.owner = req.user._id;
     
@@ -175,8 +172,8 @@ const updateDocument = async (req, res, next) => {
     if (description !== undefined) doc.description = description;
     if (entrepriseCliente !== undefined) doc.entrepriseCliente = entrepriseCliente;
     if (nomChantier !== undefined) doc.nomChantier = nomChantier;
-    if (adresseChantier !== undefined) doc.adresseChantier = adresseChantier; // 👈 Ajouté
-    if (devise !== undefined) doc.devise = devise; // 👈 Ajouté
+    if (adresseChantier !== undefined) doc.adresseChantier = adresseChantier;
+    if (devise !== undefined) doc.devise = devise;
     if (dateDocument !== undefined) doc.dateDocument = new Date(dateDocument);
 
     if (req.body.metadata) {
@@ -221,7 +218,6 @@ const togglePublish = async (req, res, next) => {
     if (!doc) return res.status(404).json({ success: false, error: { message: 'Introuvable', statusCode: 404 } });
     if (!canWrite(req.user, doc)) return res.status(403).json({ success: false, error: { message: 'Accès refusé', statusCode: 403 } });
     
-    // 👇 SÉCURITÉ : Vérification de l'autorisation de publication
     const isAdminOrStaff = ['admin', 'secretaire', 'dg'].includes(req.user.role);
     if (!isAdminOrStaff && !req.user.canPublish) {
       return res.status(403).json({ success: false, error: { message: 'L\'administrateur ne vous a pas autorisé à publier.', statusCode: 403 } });
@@ -235,6 +231,20 @@ const togglePublish = async (req, res, next) => {
     await doc.save();
 
     await Publication.create({ document: doc._id, action: published ? 'publish' : 'unpublish', performedBy: req.user._id, note: note || '' });
+    
+    // 👇 NOTIFICATION AJOUTÉE ICI
+    if (published) {
+      const usersToNotify = await User.find({ _id: { $ne: req.user._id } }); // Tous sauf l'auteur
+      const notifs = usersToNotify.map(u => ({
+        recipient: u._id,
+        sender: req.user._id,
+        type: 'publication',
+        document: doc._id,
+        message: `${req.user.prenom} a publié un nouveau document : "${doc.nom}"`,
+      }));
+      if (notifs.length > 0) await Notification.insertMany(notifs);
+    }
+
     return res.status(200).json({ success: true, message: published ? 'Publié' : 'Dépublié', data: documentResponse(doc) });
   } catch (err) { return next(err); }
 };

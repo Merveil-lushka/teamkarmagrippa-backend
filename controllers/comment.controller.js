@@ -1,9 +1,10 @@
 const Comment = require('../models/Comment');
 const Document = require('../models/Document');
+const Notification = require('../models/Notification');
 
 /**
  * POST /api/publications/:id/comments
- * Ajoute un commentaire sur un document publié.
+ * Ajoute un commentaire et notifie le propriétaire du document.
  */
 const addComment = async (req, res, next) => {
   try {
@@ -21,11 +22,21 @@ const addComment = async (req, res, next) => {
       document: doc._id,
       author: req.user._id,
       text: text.trim(),
+      readBy: [req.user._id], // L'auteur a lu son propre commentaire
     });
 
-    // On recharge le commentaire avec les infos de l'auteur pour l'envoyer au front
-    const populated = await comment.populate('author', 'nom prenom role');
+    // 👇 Notification pour le propriétaire du document (si c'est pas lui-même)
+    if (doc.owner.toString() !== req.user._id.toString()) {
+      await Notification.create({
+        recipient: doc.owner,
+        sender: req.user._id,
+        type: 'comment',
+        document: doc._id,
+        message: `${req.user.prenom} a commenté votre publication "${doc.nom}"`,
+      });
+    }
 
+    const populated = await comment.populate('author', 'nom prenom role');
     return res.status(201).json({ success: true, data: populated });
   } catch (err) {
     return next(err);
@@ -34,13 +45,19 @@ const addComment = async (req, res, next) => {
 
 /**
  * GET /api/publications/:id/comments
- * Liste les commentaires d'un document publié.
+ * Liste les commentaires et marque tous comme lus.
  */
 const getComments = async (req, res, next) => {
   try {
     const comments = await Comment.find({ document: req.params.id })
       .populate('author', 'nom prenom role')
-      .sort({ createdAt: -1 }); // Du plus récent au plus ancien
+      .sort({ createdAt: -1 });
+
+    // 👇 Marquer tous les commentaires de ce document comme lus
+    await Comment.updateMany(
+      { document: req.params.id, readBy: { $ne: req.user._id } },
+      { $push: { readBy: req.user._id } }
+    );
 
     return res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (err) {
