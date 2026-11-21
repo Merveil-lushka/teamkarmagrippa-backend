@@ -83,4 +83,10 @@ const upload = multer({
   },
 });
 
-module.exports = { upload, STORAGE_ROOT, ensureDir };
+// 👇 Nouvelle instance pour le chat (accepte tout type de fichier)
+const uploadChat = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 }, // 50 Mo max
+});
+
+module.exports = { upload, uploadChat, STORAGE_ROOT, ensureDir };

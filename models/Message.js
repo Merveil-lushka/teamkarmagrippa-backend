@@ -8,6 +8,7 @@ const messageSchema = new mongoose.Schema(
     fileUrl: { type: String, default: null },
     fileType: { type: String, default: null }, // image, pdf, etc.
     fileName: { type: String, default: null },
+    readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   },
   { timestamps: true }
 );

@@ -10,7 +10,23 @@ const getMessages = async (req, res, next) => {
       .populate('sender', 'nom prenom role agentCode')
       .sort({ createdAt: 1 }) // Du plus ancien au plus récent
       .limit(100);
+
+    await Message.updateMany(
+      { readBy: { $ne: req.user._id } },
+      { $push: { readBy: req.user._id } }
+    );
+
     return res.status(200).json({ success: true, data: messages });
+  } catch (err) { return next(err); }
+};
+
+const getUnreadCount = async (req, res, next) => {
+  try {
+    const count = await Message.countDocuments({
+      sender: { $ne: req.user._id },
+      readBy: { $ne: req.user._id },
+    });
+    return res.status(200).json({ success: true, count });
   } catch (err) { return next(err); }
 };
 
@@ -75,4 +91,4 @@ const deleteMessage = async (req, res, next) => {
   } catch (err) { return next(err); }
 };
 
-module.exports = { getMessages, sendMessage, sendFile, deleteMessage };
+module.exports = { getMessages, sendMessage, sendFile, deleteMessage, getUnreadCount };
