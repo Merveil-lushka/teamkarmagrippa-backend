@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 const User = require('../models/User');
+const cloudinaryService = require('../services/cloudinary.service');
 
 const signToken = (user) => {
   return jwt.sign(
@@ -19,6 +21,7 @@ const userResponse = (user, token = null) => {
     role: user.role,
     actif: user.actif,
     canPublish: user.canPublish, // 👈 Ajouté
+    profilePicture: user.profilePicture,
     lastLogin: user.lastLogin,
     createdAt: user.createdAt,
   };
@@ -83,16 +86,48 @@ const getMe = async (req, res, next) => {
 const updateMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ success: false, error: { message: 'Utilisateur introuvable', statusCode: 404 } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: { message: 'Utilisateur introuvable', statusCode: 404 } });
+    }
 
     const { nom, prenom, password } = req.body;
     if (nom !== undefined) user.nom = nom;
     if (prenom !== undefined) user.prenom = prenom;
     if (password && password.trim().length >= 6) user.password = password;
 
+    // 👇 Gestion de l'image de profil
+    if (req.file) {
+      // Upload sur Cloudinary
+      if (cloudinaryService.isEnabled()) {
+        // On peut supprimer l'ancienne image si elle existe
+        // if (user.profilePicture) {
+        //   const publicId = user.profilePicture.split('/').pop().split('.')[0];
+        //   await cloudinaryService.deleteFromCloud(`teamkarmagrippa/avatars/${publicId}`);
+        // }
+        
+        const cloudResult = await cloudinaryService.uploadToCloud(req.file.path, { 
+          mimeType: req.file.mimetype, 
+          folder: `teamkarmagrippa/avatars` 
+        });
+        
+        if (cloudResult.url) {
+          user.profilePicture = cloudResult.url;
+        }
+      }
+      // Nettoyage du fichier local temporaire
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+
     await user.save();
-    return res.status(200).json({ success: true, data: userResponse(user) });
-  } catch (err) { return next(err); }
+
+    return res.status(200).json({
+      success: true,
+      data: userResponse(user), // N'oublie pas d'ajouter profilePicture dans userResponse
+    });
+  } catch (err) {
+    if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    return next(err);
+  }
 };
 
 module.exports = { register, login, getMe, updateMe };

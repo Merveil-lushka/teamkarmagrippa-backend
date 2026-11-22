@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { register, login, getMe, updateMe } = require('../controllers/auth.controller'); // 👈 Import de updateMe
 const { protect } = require('../middleware/auth.middleware');
+const { upload } = require('../config/upload');
 
 /**
  * @route   POST /api/auth/register
@@ -30,6 +31,6 @@ router.get('/me', protect, getMe);
  * @desc    Mise à jour du profil de l'utilisateur connecté
  * @access  Privé (JWT requis)
  */
-router.put('/me', protect, updateMe); // 👈 Nouvelle route ajoutée
+router.put('/me', protect, upload.single('profilePicture'), updateMe); // 👈 Nouvelle route ajoutée
 
 module.exports = router;

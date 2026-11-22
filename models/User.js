@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Format email invalide'],
     },
+    profilePicture: {
+      type: String,
+      default: null,
+    },
     // 👇 Nouveau champ Code Agent
     agentCode: {
       type: String,
