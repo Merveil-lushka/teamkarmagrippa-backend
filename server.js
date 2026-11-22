@@ -66,8 +66,8 @@ app.get('/api/health', async (req, res) => {
 // ── Route de mise à jour de l'application (OTA) ─────────────
 app.get('/api/version', (req, res) => {
   res.status(200).json({
-    latestVersion: "1.0.1",
-    downloadUrl: "https://github.com/Merveil-lushka/teamkarmagrippa-backend/releases/tag/v1.0.1",
+    latestVersion: "1.0.2",
+    downloadUrl: "https://github.com/Merveil-lushka/teamkarmagrippa-backend/releases/download/v1.0.1/app-release.apk",
     forceUpdate: false,
   });
 });
